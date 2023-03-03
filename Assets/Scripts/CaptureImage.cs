@@ -1,35 +1,25 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
-using Unity.Collections;
-using Unity.Jobs;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 using UnityEngine.XR.ARFoundation;
-using UnityEngine.XR.ARSubsystems;
 
 public class CaptureImage : MonoBehaviour
 {
     public const int RenderTextureDepth = 24;
-    private const int MaxTrackedImages = 3;
-    private const float ImagePhysicalWidth = 0.1f;
+
+    [HideInInspector] public UnityEvent<Texture2D> PhotoCaptured = new UnityEvent<Texture2D>();
 
     [SerializeField] private Button takePhotoButton;
     [SerializeField] private Transform photosContent;
     [SerializeField] private GameObject photoPrefab;
-    [SerializeField] private List<GameObject> prefabToInstantiate;
-
-    private Dictionary<string, GameObject> instantiatedPrefabs;
-    private ARTrackedImageManager arTrackedImageManager;
+    
     private Camera mainCamera;
-    private GameObject recognizedImageObject;
-    private int prefabIndex = 0;
 
     private void Awake()
     {
         mainCamera = Camera.main;
-        arTrackedImageManager = gameObject.AddComponent<ARTrackedImageManager>();
-        instantiatedPrefabs = new Dictionary<string, GameObject>();
         takePhotoButton.interactable = false;
     }
 
@@ -47,8 +37,6 @@ public class CaptureImage : MonoBehaviour
     {
         if (Application.platform != RuntimePlatform.WindowsEditor)
         {
-            arTrackedImageManager.referenceLibrary = arTrackedImageManager.CreateRuntimeLibrary();
-            arTrackedImageManager.requestedMaxNumberOfMovingImages = MaxTrackedImages;
             StartCoroutine(WaitForStartTracking());
         }
     }
@@ -56,14 +44,7 @@ public class CaptureImage : MonoBehaviour
     private IEnumerator WaitForStartTracking()
     {
         yield return new WaitUntil(() => ARSession.state == ARSessionState.SessionTracking);
-        StartTracker();
         takePhotoButton.interactable = true;
-    }
-
-    private void StartTracker()
-    {
-        arTrackedImageManager.enabled = true;
-        arTrackedImageManager.trackedImagesChanged += ArTrackedImageManager_trackedImagesChanged;
     }
 
     private void TakePhoto()
@@ -87,7 +68,7 @@ public class CaptureImage : MonoBehaviour
         var screenshot = GetScreenshotWithoutUI();
         var photoUI = Instantiate(photoPrefab, photosContent);
         photoUI.GetComponent<SetImage>().SetPhoto(screenshot);
-        yield return StartCoroutine(AddImage(screenshot));
+        PhotoCaptured.Invoke(screenshot);
     }
 
     private Texture2D GetScreenshotWithoutUI()
@@ -113,98 +94,5 @@ public class CaptureImage : MonoBehaviour
         RenderTexture.active = currentRenderTexture;
         Destroy(renderTexture);
         Destroy(currentRenderTexture);
-    }
-
-    private void ArTrackedImageManager_trackedImagesChanged(ARTrackedImagesChangedEventArgs obj)
-    {
-        foreach (var trackedImage in obj.added)
-        {
-            if (!instantiatedPrefabs.ContainsKey(trackedImage.referenceImage.name))
-            {
-                var imageObject = Instantiate(prefabToInstantiate[prefabIndex], trackedImage.transform.position, Quaternion.identity);
-                prefabIndex = (prefabIndex + 1) % prefabToInstantiate.Count;
-                instantiatedPrefabs.Add(trackedImage.referenceImage.name, imageObject);
-            }
-            TrackImage(trackedImage);
-        }
-        foreach (var trackedImage in obj.updated)
-        {
-            TrackImage(trackedImage);
-        }
-        foreach (var trackedImage in obj.removed)
-        {
-            TrackImage(trackedImage);
-        }
-    }
-
-    private void TrackImage(ARTrackedImage trackedImage)
-    {
-        recognizedImageObject = instantiatedPrefabs[trackedImage.referenceImage.name];
-        if (trackedImage.trackingState == TrackingState.Tracking)
-        {
-            recognizedImageObject.transform.position = trackedImage.transform.position;
-            recognizedImageObject.transform.rotation = trackedImage.transform.rotation;
-            recognizedImageObject.SetActive(true);
-        }
-        else
-        {
-            recognizedImageObject.SetActive(false);
-        }
-    }
-
-    private IEnumerator AddImage(Texture2D texture2D)
-    {
-        print("Add image to library...");
-        var formattedImage = ChangeFormat(texture2D, TextureFormat.R8);
-        // Destroy(texture2D); - we use it in the UI, so it shouldn't be destroyed. Only if you don't want them present in UI, this is needed for memory cleanup.
-        yield return StartCoroutine(AddImage(new NativeArray<byte>(formattedImage.GetRawTextureData<byte>(), Allocator.Persistent), formattedImage.format, formattedImage.width, formattedImage.height, ImagePhysicalWidth, texture2D.name));
-        Destroy(formattedImage);
-    }
-
-    private IEnumerator AddImage(NativeArray<byte> grayscaleImageBytes, TextureFormat format,
-              int widthInPixels,
-              int heightInPixels,
-              float widthInMeters,
-              string imageName)
-    {
-        if (arTrackedImageManager.referenceLibrary is MutableRuntimeReferenceImageLibrary mutableLibrary)
-        {
-            var aspectRatio = (float)heightInPixels / (float)widthInPixels;
-            var sizeInMeters = new Vector2(widthInMeters, widthInMeters * aspectRatio);
-            var referenceImage = new XRReferenceImage(
-                SerializableGuid.empty,
-                SerializableGuid.empty,
-                sizeInMeters, imageName, null);
-
-            var jobState = mutableLibrary.ScheduleAddImageWithValidationJob(
-                grayscaleImageBytes,
-                new Vector2Int(widthInPixels, heightInPixels),
-                format,
-                referenceImage);
-
-            new DeallocateJob { data = grayscaleImageBytes }.Schedule(jobState.jobHandle);
-            yield return new WaitUntil(() => jobState.jobHandle.IsCompleted);
-            print("Image added in the library.");
-        }
-        else
-        {
-            grayscaleImageBytes.Dispose();
-        }
-    }
-
-    private Texture2D ChangeFormat(Texture2D oldTexture, TextureFormat newFormat)
-    {
-        Texture2D newTex = new Texture2D(oldTexture.width, oldTexture.height, newFormat, false);
-        newTex.SetPixels(oldTexture.GetPixels());
-        newTex.Apply();
-
-        return newTex;
-    }
-
-    private struct DeallocateJob : IJob
-    {
-        [DeallocateOnJobCompletion]
-        public NativeArray<byte> data;
-        public void Execute() { }
     }
 }

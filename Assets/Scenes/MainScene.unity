@@ -526,7 +526,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0}
   m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: 0, y: 50}
+  m_AnchoredPosition: {x: 0, y: 100}
   m_SizeDelta: {x: 190, y: 49}
   m_Pivot: {x: 0.5, y: 0}
 --- !u!114 &1018019859
@@ -1145,6 +1145,7 @@ GameObject:
   - component: {fileID: 2055627512}
   - component: {fileID: 2055627511}
   - component: {fileID: 2055627513}
+  - component: {fileID: 2055627514}
   m_Layer: 0
   m_Name: AR Session Origin
   m_TagString: Untagged
@@ -1192,11 +1193,27 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f36b4f371ee936c46a5e58e1e627dac8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  PhotoCaptured:
+    m_PersistentCalls:
+      m_Calls: []
   takePhotoButton: {fileID: 1018019859}
   photosContent: {fileID: 902247940}
   photoPrefab: {fileID: 5399061142443170577, guid: 0e2ff004fbf977c4882ae584ee99fa28, type: 3}
+--- !u!114 &2055627514
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2055627510}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2342bc4855543e4e86ea2196422345b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
   prefabToInstantiate:
   - {fileID: 3766972934825715060, guid: d726924420f0bb04b97960fdbe880971, type: 3}
   - {fileID: 4536744961481929766, guid: a4af90a0586768f4d9d847abbf5ac84d, type: 3}
-  - {fileID: 8748499988969497431, guid: ef6dd9f6c8c59d949b0c47723fdb6716, type: 3}
   - {fileID: 572478826584420071, guid: fc5dda570cb017c46b8b56151941229b, type: 3}
+  - {fileID: 8748499988969497431, guid: ef6dd9f6c8c59d949b0c47723fdb6716, type: 3}
+  captureImage: {fileID: 2055627513}
