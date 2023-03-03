@@ -17,12 +17,13 @@ public class CaptureImage : MonoBehaviour
     [SerializeField] private Button takePhotoButton;
     [SerializeField] private Transform photosContent;
     [SerializeField] private GameObject photoPrefab;
-    [SerializeField] private GameObject prefabToInstantiate;
+    [SerializeField] private List<GameObject> prefabToInstantiate;
 
     private Dictionary<string, GameObject> instantiatedPrefabs;
     private ARTrackedImageManager arTrackedImageManager;
     private Camera mainCamera;
     private GameObject recognizedImageObject;
+    private int prefabIndex = 0;
 
     private void Awake()
     {
@@ -57,12 +58,10 @@ public class CaptureImage : MonoBehaviour
         yield return new WaitUntil(() => ARSession.state == ARSessionState.SessionTracking);
         StartTracker();
         takePhotoButton.interactable = true;
-        print("Can take photo!");
     }
 
     private void StartTracker()
     {
-        print("Ready to track images!");
         arTrackedImageManager.enabled = true;
         arTrackedImageManager.trackedImagesChanged += ArTrackedImageManager_trackedImagesChanged;
     }
@@ -85,12 +84,9 @@ public class CaptureImage : MonoBehaviour
     private IEnumerator CaptureImageCoroutine()
     {
         yield return new WaitForEndOfFrame();
-        print("Taking photo...");
-
         var screenshot = GetScreenshotWithoutUI();
         var photoUI = Instantiate(photoPrefab, photosContent);
         photoUI.GetComponent<SetImage>().SetPhoto(screenshot);
-
         yield return StartCoroutine(AddImage(screenshot));
     }
 
@@ -123,9 +119,12 @@ public class CaptureImage : MonoBehaviour
     {
         foreach (var trackedImage in obj.added)
         {
-            print($"trackedImage name: {trackedImage.referenceImage.name}");
-            var imageObject = Instantiate(prefabToInstantiate, trackedImage.transform.position, Quaternion.identity);
-            instantiatedPrefabs.Add(trackedImage.referenceImage.name, imageObject);
+            if (!instantiatedPrefabs.ContainsKey(trackedImage.referenceImage.name))
+            {
+                var imageObject = Instantiate(prefabToInstantiate[prefabIndex], trackedImage.transform.position, Quaternion.identity);
+                prefabIndex = (prefabIndex + 1) % prefabToInstantiate.Count;
+                instantiatedPrefabs.Add(trackedImage.referenceImage.name, imageObject);
+            }
             TrackImage(trackedImage);
         }
         foreach (var trackedImage in obj.updated)
@@ -143,14 +142,12 @@ public class CaptureImage : MonoBehaviour
         recognizedImageObject = instantiatedPrefabs[trackedImage.referenceImage.name];
         if (trackedImage.trackingState == TrackingState.Tracking)
         {
-            //print($"tracking: {recognizedImageObject.transform.position} is now at: {trackedImage.transform.position}");
             recognizedImageObject.transform.position = trackedImage.transform.position;
             recognizedImageObject.transform.rotation = trackedImage.transform.rotation;
             recognizedImageObject.SetActive(true);
         }
         else
         {
-            print("tracking lost");
             recognizedImageObject.SetActive(false);
         }
     }
