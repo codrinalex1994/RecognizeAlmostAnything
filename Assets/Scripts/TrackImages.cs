@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Jobs;
 using UnityEngine;
+using UnityEngine.UI;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 
@@ -13,7 +14,9 @@ public class TrackImages : MonoBehaviour
 
     [SerializeField] private List<GameObject> prefabToInstantiate;
     [SerializeField] private CaptureImage captureImage;
+    [SerializeField] private Button anchorObjectButton;
 
+    private List<GameObject> anchoredObjects;
     private Dictionary<string, GameObject> instantiatedPrefabs;
     private ARTrackedImageManager arTrackedImageManager;
     private GameObject recognizedImageObject;
@@ -21,9 +24,12 @@ public class TrackImages : MonoBehaviour
 
     private void Awake()
     {
+        anchoredObjects = new List<GameObject>();
         arTrackedImageManager = gameObject.AddComponent<ARTrackedImageManager>();
         instantiatedPrefabs = new Dictionary<string, GameObject>();
         captureImage.PhotoCaptured.AddListener(OnPhotoCaptured);
+        anchorObjectButton.onClick.AddListener(OnAnchorObjectPressed);
+        anchorObjectButton.interactable = false;
     }
 
     private void Start()
@@ -39,6 +45,7 @@ public class TrackImages : MonoBehaviour
     private IEnumerator WaitForStartTracking()
     {
         yield return new WaitUntil(() => ARSession.state == ARSessionState.SessionTracking);
+        print("StartTracker!");
         StartTracker();
     }
 
@@ -53,15 +60,29 @@ public class TrackImages : MonoBehaviour
         StartCoroutine(AddImage(texture2D));
     }
 
+    private void OnAnchorObjectPressed()
+    {
+        if (recognizedImageObject != null)
+        {
+            recognizedImageObject.transform.SetParent(transform);
+            recognizedImageObject.SetActive(true);
+            anchoredObjects.Add(recognizedImageObject);
+            recognizedImageObject = null;
+        }
+    }
+
     private void ArTrackedImageManager_trackedImagesChanged(ARTrackedImagesChangedEventArgs obj)
     {
+        print("ArTrackedImageManager_trackedImagesChanged");
         foreach (var trackedImage in obj.added)
         {
+            print("track image: " + trackedImage.name);
             if (!instantiatedPrefabs.ContainsKey(trackedImage.referenceImage.name))
             {
                 var imageObject = Instantiate(prefabToInstantiate[prefabIndex], trackedImage.transform.position, Quaternion.identity);
                 prefabIndex = (prefabIndex + 1) % prefabToInstantiate.Count;
                 instantiatedPrefabs.Add(trackedImage.referenceImage.name, imageObject);
+                print("Instantiate prefab: " + imageObject.name);
             }
             TrackImage(trackedImage);
         }
@@ -78,15 +99,21 @@ public class TrackImages : MonoBehaviour
     private void TrackImage(ARTrackedImage trackedImage)
     {
         recognizedImageObject = instantiatedPrefabs[trackedImage.referenceImage.name];
-        if (trackedImage.trackingState == TrackingState.Tracking)
+        if (recognizedImageObject != null && !anchoredObjects.Contains(recognizedImageObject))
         {
-            recognizedImageObject.transform.position = trackedImage.transform.position;
-            recognizedImageObject.transform.rotation = trackedImage.transform.rotation;
-            recognizedImageObject.SetActive(true);
-        }
-        else
-        {
-            recognizedImageObject.SetActive(false);
+            if (trackedImage.trackingState == TrackingState.Tracking)
+            {
+                recognizedImageObject.transform.position = trackedImage.transform.position;
+                recognizedImageObject.transform.rotation = trackedImage.transform.rotation;
+                recognizedImageObject.SetActive(true);
+                anchorObjectButton.interactable = true;
+                print("Set track image object position!");
+            }
+            else
+            {
+                recognizedImageObject.SetActive(false);
+                anchorObjectButton.interactable = false;
+            }
         }
     }
 
